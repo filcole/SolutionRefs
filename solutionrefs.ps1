@@ -377,11 +377,7 @@ Function ReplacePackageRefs([xml]$xml)
         $ref = $_.ref
         $package = $_.package
 
-        $packageRefs[$ref] = [PSCustomObject]@{
-            # TODO: Remove SolutionRef and simplify to string, rather than an object
-            PackageRef = $ref
-            Package = $package
-        }
+        $packageRefs[$ref] = $package
     }
 
     Write-Host "Found $($packageRefs.Count) packageRefs"
@@ -400,7 +396,7 @@ Function ReplacePackageRefs([xml]$xml)
             Exit (1)
         }
 
-        $package = $packageRefs[$packageRef].Package
+        $package = $packageRefs[$packageRef]
         Write-Debug "Replacing $packageRef with $package"
 
         # Create a new package element to replace the current 'PackageRef' element
@@ -419,10 +415,10 @@ Function SaveXml ([xml]$xmlDoc, [string]$fileName) {
     # Settings object will instruct how the xml elements are written to the file
     $settings = New-Object System.Xml.XmlWriterSettings
     $settings.Indent = $true
-    #NewLineChars will affect all newlines
+    # NewLineChars will affect all newlines
     $settings.NewLineChars ="`r`n"
-    #Set an optional encoding, UTF-8 is the most used (without BOM)
-    #$settings.Encoding = New-Object System.Text.UTF8Encoding( $false )
+    # Set UTF-8 encoding (without BOM)
+    $settings.Encoding = New-Object System.Text.UTF8Encoding( $false )
 
     $w = [System.Xml.XmlWriter]::Create($fileName, $settings)
     try{
