@@ -8,9 +8,8 @@
 
   When run with the -restore flag the script reverses this transformation, restoring the original solution.xml
   
-  .TODO
+  TODO
   1. Understand the relevance and variability of the id and id.connectionreferencelogicalname attributes on the MissingDependency/Required element
-  2. Handle package numbers
 
   NOTES/WARNINGS
   1. The power apps solution structure is proprietary and subject to change. This script may stop working at any time!
@@ -25,14 +24,27 @@
   .PARAMETER restore
   Indicates if the SolutionRefs should be removed and the original solution.xml restored
 
-  .LINK
-  https://philcole.org/post/TODO
-
   .EXAMPLE
-  PS> AddSolutionRefs.ps1 -solnfolder ./MySolution
+  PS> SolutionRefs.ps1 -solnfolder ./MySolution
 
   Will convert this:
 
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml version="9.2.22072.182" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <SolutionManifest>
+    <UniqueName>MissingDepsExample</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="Missing Deps Example" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions />
+    <Version>1.0.0.0</Version>
+    <Managed>2</Managed>
+    <Publisher>  ... snip ... </Publisher>
+    <RootComponents>
+      <RootComponent type="1" schemaName="account" behavior="2" />
+      <RootComponent type="1" schemaName="msdyn_customcontrolextendedsettings" behavior="2" />
+      <RootComponent type="1" schemaName="msdyn_slakpi" behavior="2" />
+    </RootComponents>
     <MissingDependencies>
       <MissingDependency>
         <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
@@ -53,9 +65,28 @@
         <Dependent type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" />
       </MissingDependency>
     </MissingDependencies>
+  </SolutionManifest>
+</ImportExportXml>
 
-  info:
 
+  into:
+
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml version="9.2.22072.182" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <SolutionManifest>
+    <UniqueName>MissingDepsExample</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="Missing Deps Example" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions />
+    <Version>1.0.0.0</Version>
+    <Managed>2</Managed>
+    <Publisher>  ... snip ... </Publisher>
+    <RootComponents>
+      <RootComponent type="1" schemaName="account" behavior="2" />
+      <RootComponent type="1" schemaName="msdyn_customcontrolextendedsettings" behavior="2" />
+      <RootComponent type="1" schemaName="msdyn_slakpi" behavior="2" />
+    </RootComponents>
     <MissingDependencies>
       <MissingDependency>
         <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solutionRef="msdyn_UserExperiencesExtendedSettings" />
@@ -71,7 +102,7 @@
       </MissingDependency>
       <MissingDependency>
         <Required type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" solutionRef="msdynce_ServiceLevelAgreementExtension">
-          <package>msdynce_ServiceLevelAgreementAnchor (9.0.22072.1003)</package>
+          <PackageRef>msdynce_ServiceLevelAgreementAnchor</PackageRef>
         </Required>
         <Dependent type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" />
       </MissingDependency>
@@ -79,9 +110,16 @@
         <SolutionRef ref="msdynce_ServiceLevelAgreementExtension" solution="msdynce_ServiceLevelAgreementExtension (9.0.22072.1003)" />
         <SolutionRef ref="msdyn_UserExperiencesExtendedSettings" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
       </SolutionRefs>
+      <PackageRefs>
+        <PackageRef ref="msdynce_ServiceLevelAgreementAnchor" package="msdynce_ServiceLevelAgreementAnchor (9.0.22072.1003)" />
+      </PackageRefs>
     </MissingDependencies>
+  </SolutionManifest>
+</ImportExportXml>
+  
+  PS> SolutionRefs.ps1 -solnfolder ./MySolution -restore
 
-  PS> AddSolutionRefs.ps1 -solnfolder ./MySolution -restore
+  Will reverse the transformation and restore the original XML
 #>
 
 param (
@@ -107,7 +145,7 @@ Function GetSolutionXmlFileName {
 
 Function CheckMissingDependencyExists([xml]$xml) {
     $nodeExists = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency")
-    if ($nodeExists -eq $null) {
+    if ($null -eq $nodeExists) {
         Write-Host "No missing dependencies found. No changes required."
         exit
     }
@@ -118,12 +156,17 @@ Function GetSolutionRefsNode([xml]$xml) {
     return $node;
 }
 
+Function GetPackageRefsNode([xml]$xml) {
+    $node = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/PackageRefs")
+    return $node
+}
+
 Function AddSolutionRefs([xml]$xml)
 {
     $nodeExists = GetSolutionRefsNode $xml
-    if ($nodeExists -ne $null) {
+    if ($null -ne $nodeExists) {
         Write-Host "SolutionRefs already present. Has script already been run?"
-        return $false;
+        return $false
     }
 
     $solutionRefs = @{}
@@ -176,7 +219,7 @@ Function AddSolutionRefs([xml]$xml)
     $solutionRefElement = $xml.CreateElement("SolutionRefs")
     $solutionRefs.GetEnumerator() | Sort-Object $_.Key | ForEach-Object {
         
-        $elem = $xml.CreateElement("SolutionRef");
+        $elem = $xml.CreateElement("SolutionRef")
         $elem.SetAttribute("ref", $_.Value.SolutionRef)
         $elem.SetAttribute("solution", $_.Key)
         $solutionRefElement.AppendChild($elem) | Out-Null
@@ -188,10 +231,85 @@ Function AddSolutionRefs([xml]$xml)
     return $true
 }
 
+Function AddPackageRefs([xml]$xml)
+{
+    $nodeExists = GetPackageRefsNode $xml
+    if ($null -ne $nodeExists) {
+        Write-Host "PackageRefs already present. Has script already been run?"
+        return $false
+    }
+
+    $packageRefs = @{}
+    Write-Host "Combining packages in MissingDependencies"
+
+    # Regex to extract solution name and version
+    $rePackage = '^(.*) \(([0-9.]+)\)$'
+
+    $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/package")
+    
+    Write-Debug "Found $($nodes.Count) package elements"
+
+    $nodes | ForEach-Object {
+        $reqdPackage = $_.InnerText
+        
+        if (!($reqdPackage -match $rePackage)) {
+            Write-Host "Warning: Could not find package and version in '$reqdPackage'"
+            return
+        }
+
+        $package = $matches[1] 
+
+        if (!$packageRefs.ContainsKey($reqdPackage)) {
+
+            # Get number of times encountered any version of this package already
+            $count = ($packageRefs.GetEnumerator() | Where-Object { $_.Value.Package -eq $package } | Measure-Object).Count
+
+            # Only append number to end of package ref if we've already encountered a different
+            # version of this package already.
+            $packageref = $package
+            if ($count -gt 0) {
+                $packageref = "${package}${count}"
+            }
+
+            Write-Debug "Adding reference for $reqdPackage"
+            $packageRefs[$reqdPackage] = [PSCustomObject]@{
+                PackageRef = $packageref
+                Package = $package
+            }
+        }
+
+        $packageref = $packageRefs[$reqdPackage].PackageRef
+
+        # Create a new packageref element to replace the current 'package' element
+        $elem = $xml.CreateElement("PackageRef")
+        $elem.InnerText= $packageRef
+
+        $_.ParentNode.InsertAfter($elem, $_)
+        $_.ParentNode.RemoveChild($_) | Out-Null
+    }
+
+    Write-Debug ("Found" + $packageRefs.Count + "references")
+    
+    # Iterate over each pacakge reference, sorted alphabetically and add to a new 'PackageRefs' element
+    $packageRefElement = $xml.CreateElement("PackageRefs")
+    $packageRefs.GetEnumerator() | Sort-Object $_.Key | ForEach-Object {
+        
+        $elem = $xml.CreateElement("PackageRef")
+        $elem.SetAttribute("ref", $_.Value.PackageRef)
+        $elem.SetAttribute("package", $_.Key)
+        $packageRefElement.AppendChild($elem) | Out-Null
+    }
+
+    $xml.ImportExportXml.SolutionManifest.MissingDependencies.AppendChild($packageRefElement) | Out-Null
+    Write-Host "Added $($packageRefs.Count) PackageRefs"
+
+    return $true
+}
+
 Function ReplaceSolutionRefs([xml]$xml)
 {
     $node = GetSolutionRefsNode $xml
-    if ($node -eq $null) {
+    if ($null -eq $node) {
         Write-Host "SolutionRefs not present. No changes made"
         return $false
     }
@@ -242,6 +360,61 @@ Function ReplaceSolutionRefs([xml]$xml)
     return $true
 }
 
+Function ReplacePackageRefs([xml]$xml)
+{
+    $node = GetPackageRefsNode $xml
+    if ($null -eq $node) {
+        Write-Host "PackageRefs not present. No changes made"
+        return $false
+    }
+
+    Write-Host "Replacing packageRefs"
+    
+    # Read in package refs
+    $packageRefs = @{}
+    $xml.ImportExportXml.SolutionManifest.MissingDependencies.PackageRefs.PackageRef | ForEach-Object {
+
+        $ref = $_.ref
+        $package = $_.package
+
+        $packageRefs[$ref] = [PSCustomObject]@{
+            # TODO: Remove SolutionRef and simplify to string, rather than an object
+            PackageRef = $ref
+            Package = $package
+        }
+    }
+
+    Write-Host "Found $($packageRefs.Count) packageRefs"
+
+    # Delete PackageRefs element
+    $xml.ImportExportXml.SolutionManifest.MissingDependencies.RemoveChild($node)
+
+    $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/PackageRef")
+
+    # Replace packagerefs in Missing Dependencies
+    $nodes | ForEach-Object {
+
+        $packageRef = $_.InnerText
+        if (!$packageRefs.ContainsKey($packageRef)) {
+            Write-Error "PackageRef $packageRef not found. Unable to replace. Aborting"
+            Exit (1)
+        }
+
+        $package = $packageRefs[$packageRef].Package
+        Write-Debug "Replacing $packageRef with $package"
+
+        # Create a new package element to replace the current 'PackageRef' element
+        $elem = $xml.CreateElement("package")
+        $elem.InnerText= $package
+
+        $_.ParentNode.InsertAfter($elem, $_)
+        $_.ParentNode.RemoveChild($_) | Out-Null
+    }
+
+    # We made changes
+    return $true
+}
+
 Function SaveXml ([xml]$xmlDoc, [string]$fileName) {
     # Settings object will instruct how the xml elements are written to the file
     $settings = New-Object System.Xml.XmlWriterSettings
@@ -272,9 +445,14 @@ $modified = $false
 CheckMissingDependencyExists $xml
 
 if ($restore -eq $true) {
-    $modified = ReplaceSolutionRefs($xml)
+    $solModified = ReplaceSolutionRefs($xml)
+    $pacModified = ReplacePackageRefs($xml)
+    $modified = $solModified -or $pacModified
+
 } else {
-    $modified = AddSolutionRefs($xml)
+    $solModified = AddSolutionRefs($xml)
+    $pacModified = AddPackageRefs($xml)
+    $modified = $solModified -or $pacModified
 }
 
 if ($modified -eq $true) {
