@@ -9,7 +9,8 @@
   When run with the -restore flag the script reverses this transformation, restoring the original solution.xml
   
   .TODO
-  Understand the relevance and variability of the id and id.connectionreferencelogicalname attributes on the MissingDependency/Required element
+  1. Understand the relevance and variability of the id and id.connectionreferencelogicalname attributes on the MissingDependency/Required element
+  2. Handle package numbers
 
   NOTES/WARNINGS
   1. The power apps solution structure is proprietary and subject to change. This script may stop working at any time!
@@ -24,8 +25,61 @@
   .PARAMETER restore
   Indicates if the SolutionRefs should be removed and the original solution.xml restored
 
+  .LINK
+  https://philcole.org/post/TODO
+
   .EXAMPLE
   PS> AddSolutionRefs.ps1 -solnfolder ./MySolution
+
+  Will convert this:
+
+    <MissingDependencies>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
+        <Dependent type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
+        <Dependent type="2" schemaName="ownerid" displayName="Owner" parentSchemaName="msdyn_customcontrolextendedsettings" parentDisplayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
+        <Dependent type="2" schemaName="owningbusinessunit" displayName="Owning Business Unit" parentSchemaName="msdyn_customcontrolextendedsettings" parentDisplayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" solution="msdynce_ServiceLevelAgreementExtension (9.0.22072.1003)">
+          <package>msdynce_ServiceLevelAgreementAnchor (9.0.22072.1003)</package>
+        </Required>
+        <Dependent type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" />
+      </MissingDependency>
+    </MissingDependencies>
+
+  info:
+
+    <MissingDependencies>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solutionRef="msdyn_UserExperiencesExtendedSettings" />
+        <Dependent type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solutionRef="msdyn_UserExperiencesExtendedSettings" />
+        <Dependent type="2" schemaName="ownerid" displayName="Owner" parentSchemaName="msdyn_customcontrolextendedsettings" parentDisplayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_customcontrolextendedsettings" displayName="Custom Control Extended Setting" solutionRef="msdyn_UserExperiencesExtendedSettings" />
+        <Dependent type="2" schemaName="owningbusinessunit" displayName="Owning Business Unit" parentSchemaName="msdyn_customcontrolextendedsettings" parentDisplayName="Custom Control Extended Setting" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" solutionRef="msdynce_ServiceLevelAgreementExtension">
+          <package>msdynce_ServiceLevelAgreementAnchor (9.0.22072.1003)</package>
+        </Required>
+        <Dependent type="1" schemaName="msdyn_slakpi" displayName="SLA KPI" />
+      </MissingDependency>
+      <SolutionRefs>
+        <SolutionRef ref="msdynce_ServiceLevelAgreementExtension" solution="msdynce_ServiceLevelAgreementExtension (9.0.22072.1003)" />
+        <SolutionRef ref="msdyn_UserExperiencesExtendedSettings" solution="msdyn_UserExperiencesExtendedSettings (1.0.0.317)" />
+      </SolutionRefs>
+    </MissingDependencies>
 
   PS> AddSolutionRefs.ps1 -solnfolder ./MySolution -restore
 #>
