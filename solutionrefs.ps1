@@ -123,310 +123,309 @@
 #>
 
 param (
-    [Parameter(Mandatory = $true, HelpMessage = "Enter the path to the unpacked solution")]
-    [Alias("p", "path")]
-    [string]$solnfolder,
-    [switch]$restore = $false
+  [Parameter(Mandatory = $true, HelpMessage = "Enter the path to the unpacked solution")]
+  [Alias("p", "path")]
+  [string]$solnfolder,
+  [switch]$restore = $false
 )
 
 Function GetSolutionXmlFileName {
-    # Resolve any relative folder provided to script to full pathname
-    $solnxml = Resolve-Path $solnfolder
+  # Resolve any relative folder provided to script to full pathname
+  $solnxml = Resolve-Path $solnfolder
 
-    $solnxml = Join-Path $solnxml "Other"
-    $solnxml = Join-Path $solnxml "Solution.xml"
+  $solnxml = Join-Path $solnxml "Other"
+  $solnxml = Join-Path $solnxml "Solution.xml"
 
-    if (!( Test-Path -Path $solnxml -PathType Leaf)) {
-        Write-Error "Not valid solution folder. $solnxml does not exist"
-        exit
-    }
-    return $solnxml
+  if (!( Test-Path -Path $solnxml -PathType Leaf)) {
+    Write-Error "Not valid solution folder. $solnxml does not exist"
+    exit
+  }
+  return $solnxml
 }
 
 Function CheckMissingDependencyExists([xml]$xml) {
-    $nodeExists = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency")
-    if ($null -eq $nodeExists) {
-        Write-Host "No missing dependencies found. No changes required."
-        exit
-    }
+  $nodeExists = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency")
+  if ($null -eq $nodeExists) {
+    Write-Host "No missing dependencies found. No changes required."
+    exit
+  }
 }
 
 Function GetSolutionRefsNode([xml]$xml) {
-    $node = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/SolutionRefs")
-    return $node;
+  $node = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/SolutionRefs")
+  return $node;
 }
 
 Function GetPackageRefsNode([xml]$xml) {
-    $node = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/PackageRefs")
-    return $node
+  $node = $xml.SelectSingleNode("/ImportExportXml/SolutionManifest/MissingDependencies/PackageRefs")
+  return $node
 }
 
-Function AddSolutionRefs([xml]$xml)
-{
-    $nodeExists = GetSolutionRefsNode $xml
-    if ($null -ne $nodeExists) {
-        Write-Host "SolutionRefs already present. Has script already been run?"
-        return $false
-    }
+Function AddSolutionRefs([xml]$xml) {
+  $nodeExists = GetSolutionRefsNode $xml
+  if ($null -ne $nodeExists) {
+    Write-Host "SolutionRefs already present. Has script already been run?"
+    return $false
+  }
 
-    $solutionRefs = @{}
-    Write-Host "Combining solutionrefs in MissingDependencies"
+  $solutionRefs = @{}
+  Write-Host "Combining solutionrefs in MissingDependencies"
 
-    # Regex to extract solution name and version
-    $reSolution = '^(.*) \(([0-9.]+)\)$'
+  # Regex to extract solution name and version
+  $reSolution = '^(.*) \(([0-9.]+)\)$'
 
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.MissingDependency | Where-Object { $_.Required.solution -ne "Active" } | ForEach-Object {
-        # TODO: Handle missing 'Required' element
-        # TODO: Handle misssing 'solution' attrib on 'Required' element
-        $reqdSolution = $_.Required.solution
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.MissingDependency | Where-Object { $_.Required.solution -ne "Active" } | ForEach-Object {
+    # TODO: Handle missing 'Required' element
+    # TODO: Handle misssing 'solution' attrib on 'Required' element
+    $reqdSolution = $_.Required.solution
         
-        if (!($reqdSolution -match $reSolution)) {
-            Write-Host "Warning: Could not find solution and version in '$reqdSolution'"
-            return
-        }
-
-        $solution = $matches[1] 
-
-        if (!$solutionRefs.ContainsKey($reqdSolution)) {
-
-            # Get number of times encountered any version of this solution already
-            $count = ($solutionRefs.GetEnumerator() | Where-Object { $_.Value.Solution -eq $solution } | Measure-Object).Count
-
-            # Only append number to end of solution ref if we've already encountered a different
-            # version of this solution already.
-            $solutionref = $solution
-            if ($count -gt 0) {
-                $solutionref = "${solution}${count}"
-            }
-
-            Write-Debug "Adding reference for $reqdSolution"
-            $solutionRefs[$reqdSolution] = [PSCustomObject]@{
-                SolutionRef = $solutionref
-                Solution = $solution
-                #ReqdSolution = $reqdSolution
-            }
-        }
-
-        $solnref = $solutionRefs[$reqdSolution].SolutionRef
-
-        $_.Required.RemoveAttribute("solution")
-        $_.Required.SetAttribute("solutionRef", $solnref)
+    if (!($reqdSolution -match $reSolution)) {
+      Write-Host "Warning: Could not find solution and version in '$reqdSolution'"
+      return
     }
 
-    Write-Debug ("Found" + $solutionRefs.Count + "references")
+    $solution = $matches[1] 
+
+    if (!$solutionRefs.ContainsKey($reqdSolution)) {
+
+      # Get number of times encountered any version of this solution already
+      $count = ($solutionRefs.GetEnumerator() | Where-Object { $_.Value.Solution -eq $solution } | Measure-Object).Count
+
+      # Only append number to end of solution ref if we've already encountered a different
+      # version of this solution already.
+      $solutionref = $solution
+      if ($count -gt 0) {
+        $solutionref = "${solution}${count}"
+      }
+
+      Write-Debug "Adding reference for $reqdSolution"
+      $solutionRefs[$reqdSolution] = [PSCustomObject]@{
+        SolutionRef = $solutionref
+        Solution    = $solution
+        #ReqdSolution = $reqdSolution
+      }
+    }
+
+    $solnref = $solutionRefs[$reqdSolution].SolutionRef
+
+    $_.Required.RemoveAttribute("solution")
+    $_.Required.SetAttribute("solutionRef", $solnref)
+  }
+
+  Write-Debug ("Found" + $solutionRefs.Count + "references")
     
-    # Iterate over each solution reference, sorted alphabetically and add to a new 'SolutionRefs' element
-    $solutionRefElement = $xml.CreateElement("SolutionRefs")
-    $solutionRefs.GetEnumerator() | Sort-Object $_.Key | ForEach-Object {
-        
-        $elem = $xml.CreateElement("SolutionRef")
-        $elem.SetAttribute("ref", $_.Value.SolutionRef)
-        $elem.SetAttribute("solution", $_.Key)
-        $solutionRefElement.AppendChild($elem) | Out-Null
-    }
+  # Iterate over each solution reference, sorted alphabetically and add to a new 'SolutionRefs' element
+  $solutionRefElement = $xml.CreateElement("SolutionRefs")
+  $solutionRefs.GetEnumerator() | Sort-Object -Property Name | ForEach-Object {
+    $elem = $xml.CreateElement("SolutionRef")
+    $elem.SetAttribute("ref", $_.Value.SolutionRef)
+    $elem.SetAttribute("solution", $_.Key)
+    $solutionRefElement.AppendChild($elem) | Out-Null
+  }
 
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.AppendChild($solutionRefElement) | Out-Null
-    Write-Host "Added $($solutionRefs.Count) SolutionRefs"
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.AppendChild($solutionRefElement) | Out-Null
+  Write-Host "Added $($solutionRefs.Count) SolutionRefs"
 
-    return $true
+  return $true
 }
 
-Function AddPackageRefs([xml]$xml)
-{
-    $nodeExists = GetPackageRefsNode $xml
-    if ($null -ne $nodeExists) {
-        Write-Host "PackageRefs already present. Has script already been run?"
-        return $false
-    }
+Function AddPackageRefs([xml]$xml) {
+  $nodeExists = GetPackageRefsNode $xml
+  if ($null -ne $nodeExists) {
+    Write-Host "PackageRefs already present. Has script already been run?"
+    return $false
+  }
 
-    $packageRefs = @{}
-    Write-Host "Combining packages in MissingDependencies"
+  $packageRefs = @{}
+  Write-Host "Combining packages in MissingDependencies"
 
-    # Regex to extract solution name and version
-    $rePackage = '^(.*) \(([0-9.]+)\)$'
+  # Regex to extract solution name and version
+  $rePackage = '^(.*) \(([0-9.]+)\)$'
 
-    $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/package")
+  $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/package")
     
-    Write-Debug "Found $($nodes.Count) package elements"
+  Write-Debug "Found $($nodes.Count) package elements"
 
-    $nodes | ForEach-Object {
-        $reqdPackage = $_.InnerText
+  $nodes | ForEach-Object {
+    $reqdPackage = $_.InnerText
         
-        if (!($reqdPackage -match $rePackage)) {
-            Write-Host "Warning: Could not find package and version in '$reqdPackage'"
-            return
-        }
-
-        $package = $matches[1] 
-
-        if (!$packageRefs.ContainsKey($reqdPackage)) {
-
-            # Get number of times encountered any version of this package already
-            $count = ($packageRefs.GetEnumerator() | Where-Object { $_.Value.Package -eq $package } | Measure-Object).Count
-
-            # Only append number to end of package ref if we've already encountered a different
-            # version of this package already.
-            $packageref = $package
-            if ($count -gt 0) {
-                $packageref = "${package}${count}"
-            }
-
-            Write-Debug "Adding reference for $reqdPackage"
-            $packageRefs[$reqdPackage] = [PSCustomObject]@{
-                PackageRef = $packageref
-                Package = $package
-            }
-        }
-
-        $packageref = $packageRefs[$reqdPackage].PackageRef
-
-        # Create a new packageref element to replace the current 'package' element
-        $elem = $xml.CreateElement("PackageRef")
-        $elem.InnerText= $packageRef
-
-        $_.ParentNode.InsertAfter($elem, $_)
-        $_.ParentNode.RemoveChild($_) | Out-Null
+    if (!($reqdPackage -match $rePackage)) {
+      Write-Host "Warning: Could not find package and version in '$reqdPackage'"
+      return
     }
 
-    Write-Debug ("Found" + $packageRefs.Count + "references")
+    $package = $matches[1] 
+
+    if (!$packageRefs.ContainsKey($reqdPackage)) {
+
+      # Get number of times encountered any version of this package already
+      $count = ($packageRefs.GetEnumerator() | Where-Object { $_.Value.Package -eq $package } | Measure-Object).Count
+
+      # Only append number to end of package ref if we've already encountered a different
+      # version of this package already.
+      $packageref = $package
+      if ($count -gt 0) {
+        $packageref = "${package}${count}"
+      }
+
+      Write-Debug "Adding reference for $reqdPackage"
+      $packageRefs[$reqdPackage] = [PSCustomObject]@{
+        PackageRef = $packageref
+        Package    = $package
+      }
+    }
+
+    $packageref = $packageRefs[$reqdPackage].PackageRef
+
+    # Create a new packageref element to replace the current 'package' element
+    $elem = $xml.CreateElement("PackageRef")
+    $elem.InnerText = $packageRef
+
+    $_.ParentNode.InsertAfter($elem, $_)
+    $_.ParentNode.RemoveChild($_) | Out-Null
+  }
+
+  Write-Debug ("Found" + $packageRefs.Count + "references")
     
-    # Iterate over each pacakge reference, sorted alphabetically and add to a new 'PackageRefs' element
-    $packageRefElement = $xml.CreateElement("PackageRefs")
-    $packageRefs.GetEnumerator() | Sort-Object $_.Key | ForEach-Object {
+  # Iterate over each pacakge reference, sorted alphabetically and add to a new 'PackageRefs' element
+  $packageRefElement = $xml.CreateElement("PackageRefs")
+  $packageRefs.GetEnumerator() | Sort-Object -Property Name | ForEach-Object {
         
-        $elem = $xml.CreateElement("PackageRef")
-        $elem.SetAttribute("ref", $_.Value.PackageRef)
-        $elem.SetAttribute("package", $_.Key)
-        $packageRefElement.AppendChild($elem) | Out-Null
-    }
+    $elem = $xml.CreateElement("PackageRef")
+    $elem.SetAttribute("ref", $_.Value.PackageRef)
+    $elem.SetAttribute("package", $_.Key)
+    $packageRefElement.AppendChild($elem) | Out-Null
+  }
 
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.AppendChild($packageRefElement) | Out-Null
-    Write-Host "Added $($packageRefs.Count) PackageRefs"
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.AppendChild($packageRefElement) | Out-Null
+  Write-Host "Added $($packageRefs.Count) PackageRefs"
 
-    return $true
+  return $true
 }
 
-Function ReplaceSolutionRefs([xml]$xml)
-{
-    $node = GetSolutionRefsNode $xml
-    if ($null -eq $node) {
-        Write-Host "SolutionRefs not present. No changes made"
-        return $false
-    }
+Function ReplaceSolutionRefs([xml]$xml) {
+  $node = GetSolutionRefsNode $xml
+  if ($null -eq $node) {
+    Write-Host "SolutionRefs not present. No changes made"
+    return $false
+  }
 
-    Write-Host "Replacing solutionRefs"
+  Write-Host "Replacing solutionRefs"
     
-    # Read in solution refs
-    $solutionRefs = @{}
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.SolutionRefs.SolutionRef | ForEach-Object {
+  # Read in solution refs
+  $solutionRefs = @{}
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.SolutionRefs.SolutionRef | ForEach-Object {
 
-        $ref = $_.ref
-        $solution = $_.solution
+    $ref = $_.ref
+    $solution = $_.solution
 
-        $solutionRefs[$ref] = [PSCustomObject]@{
-            SolutionRef = $ref
-            Solution = $solution
-        }
+    $solutionRefs[$ref] = [PSCustomObject]@{
+      SolutionRef = $ref
+      Solution    = $solution
+    }
+  }
+
+  Write-Host "Found $($solutionRefs.Count) solutionRefs"
+
+  # Delete SolutionRefs elements
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.RemoveChild($node)
+
+  # Replace solutionrefs in Missing Dependencies
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.MissingDependency | Where-Object { $_.Required.solution -ne "Active" } | ForEach-Object {
+    # TODO: Handle missing 'Required' element
+    # TODO: Handle misssing 'solution' attrib on 'Required' element
+    $solutionRef = $_.Required.solutionRef
+    if (!$solutionRefs.ContainsKey($solutionRef)) {
+      Write-Error "SolutionRef $solutionRef not found. Unable to replace. Aborting"
+      Exit (1)
     }
 
-    Write-Host "Found $($solutionRefs.Count) solutionRefs"
+    $refInfo = $solutionRefs[$solutionRef]
 
-    # Delete SolutionRefs elements
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.RemoveChild($node)
+    $ref = $solutionRef
+    $solution = $refInfo.Solution
+    Write-Debug "Replacing Ref=$ref solution=$solution"
 
-    # Replace solutionrefs in Missing Dependencies
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.MissingDependency | Where-Object { $_.Required.solution -ne "Active" } | ForEach-Object {
-        # TODO: Handle missing 'Required' element
-        # TODO: Handle misssing 'solution' attrib on 'Required' element
-        $solutionRef = $_.Required.solutionRef
-        if (!$solutionRefs.ContainsKey($solutionRef)) {
-            Write-Error "SolutionRef $solutionRef not found. Unable to replace. Aborting"
-            Exit (1)
-        }
-
-        $refInfo = $solutionRefs[$solutionRef]
-
-        $ref = $solutionRef
-        $solution = $refInfo.Solution
-        Write-Debug "Replacing Ref=$ref solution=$solution"
-
-        $_.Required.RemoveAttribute("solutionRef")
+    $_.Required.RemoveAttribute("solutionRef")
         
-        Write-Debug "Replacing $solutionRef with $solution"
-        $_.Required.SetAttribute("solution", $solution)
-    }
+    Write-Debug "Replacing $solutionRef with $solution"
+    $_.Required.SetAttribute("solution", $solution)
+  }
 
-    # We made changes
-    return $true
+  # We made changes
+  return $true
 }
 
-Function ReplacePackageRefs([xml]$xml)
-{
-    $node = GetPackageRefsNode $xml
-    if ($null -eq $node) {
-        Write-Host "PackageRefs not present. No changes made"
-        return $false
-    }
+Function ReplacePackageRefs([xml]$xml) {
+  $node = GetPackageRefsNode $xml
+  if ($null -eq $node) {
+    Write-Host "PackageRefs not present. No changes made"
+    return $false
+  }
 
-    Write-Host "Replacing packageRefs"
+  Write-Host "Replacing packageRefs"
     
-    # Read in package refs
-    $packageRefs = @{}
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.PackageRefs.PackageRef | ForEach-Object {
+  # Read in package refs
+  $packageRefs = @{}
+ 
+  $packageRefList = $xml.ImportExportXml.SolutionManifest.MissingDependencies.PackageRefs.PackageRef
+  if ($null -ne $packageRefList) {
+    $packageRefList | ForEach-Object {
+      $ref = $_.ref
+      $package = $_.package
 
-        $ref = $_.ref
-        $package = $_.package
+      $packageRefs[$ref] = $package
+    }
+  }
 
-        $packageRefs[$ref] = $package
+  Write-Host "Found $($packageRefs.Count) packageRefs"
+
+  # Delete PackageRefs element
+  $xml.ImportExportXml.SolutionManifest.MissingDependencies.RemoveChild($node)
+
+  $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/PackageRef")
+
+  # Replace packagerefs in Missing Dependencies
+  $nodes | ForEach-Object {
+
+    $packageRef = $_.InnerText
+    if (!$packageRefs.ContainsKey($packageRef)) {
+      Write-Error "PackageRef $packageRef not found. Unable to replace. Aborting"
+      Exit (1)
     }
 
-    Write-Host "Found $($packageRefs.Count) packageRefs"
+    $package = $packageRefs[$packageRef]
+    Write-Debug "Replacing $packageRef with $package"
 
-    # Delete PackageRefs element
-    $xml.ImportExportXml.SolutionManifest.MissingDependencies.RemoveChild($node)
+    # Create a new package element to replace the current 'PackageRef' element
+    $elem = $xml.CreateElement("package")
+    $elem.InnerText = $package
 
-    $nodes = $xml.SelectNodes("/ImportExportXml/SolutionManifest/MissingDependencies/MissingDependency/Required/PackageRef")
+    $_.ParentNode.InsertAfter($elem, $_)
+    $_.ParentNode.RemoveChild($_) | Out-Null
+  }
 
-    # Replace packagerefs in Missing Dependencies
-    $nodes | ForEach-Object {
-
-        $packageRef = $_.InnerText
-        if (!$packageRefs.ContainsKey($packageRef)) {
-            Write-Error "PackageRef $packageRef not found. Unable to replace. Aborting"
-            Exit (1)
-        }
-
-        $package = $packageRefs[$packageRef]
-        Write-Debug "Replacing $packageRef with $package"
-
-        # Create a new package element to replace the current 'PackageRef' element
-        $elem = $xml.CreateElement("package")
-        $elem.InnerText= $package
-
-        $_.ParentNode.InsertAfter($elem, $_)
-        $_.ParentNode.RemoveChild($_) | Out-Null
-    }
-
-    # We made changes
-    return $true
+  # We made changes
+  return $true
 }
 
 Function SaveXml ([xml]$xmlDoc, [string]$fileName) {
-    # Settings object will instruct how the xml elements are written to the file
-    $settings = New-Object System.Xml.XmlWriterSettings
-    $settings.Indent = $true
-    # NewLineChars will affect all newlines
-    $settings.NewLineChars ="`r`n"
-    # Set UTF-8 encoding (without BOM)
-    $settings.Encoding = New-Object System.Text.UTF8Encoding( $false )
+  # Settings object will instruct how the xml elements are written to the file
+  $settings = New-Object System.Xml.XmlWriterSettings
+  $settings.Indent = $true
+  # NewLineChars will affect all newlines
+  $settings.NewLineChars = "`r`n"
+  # Set UTF-8 encoding (without BOM)
+  $settings.Encoding = New-Object System.Text.UTF8Encoding( $false )
 
-    $w = [System.Xml.XmlWriter]::Create($fileName, $settings)
-    try{
-        $xmlDoc.Save( $w )
-        Write-Host "Saved $filename"
-    } finally{
-        $w.Dispose()
-    }
+  $w = [System.Xml.XmlWriter]::Create($fileName, $settings)
+  try {
+    $xmlDoc.Save( $w )
+    Write-Host "Saved $filename"
+  }
+  finally {
+    $w.Dispose()
+  }
 }
 
 # MAIN PROGRAM
@@ -441,16 +440,17 @@ $modified = $false
 CheckMissingDependencyExists $xml
 
 if ($restore -eq $true) {
-    $solModified = ReplaceSolutionRefs($xml)
-    $pacModified = ReplacePackageRefs($xml)
-    $modified = $solModified -or $pacModified
+  $solModified = ReplaceSolutionRefs($xml)
+  $pacModified = ReplacePackageRefs($xml)
+  $modified = $solModified -or $pacModified
 
-} else {
-    $solModified = AddSolutionRefs($xml)
-    $pacModified = AddPackageRefs($xml)
-    $modified = $solModified -or $pacModified
+}
+else {
+  $solModified = AddSolutionRefs($xml)
+  $pacModified = AddPackageRefs($xml)
+  $modified = $solModified -or $pacModified
 }
 
 if ($modified -eq $true) {
-    SaveXml $xml $fileName
+  SaveXml $xml $fileName
 }
