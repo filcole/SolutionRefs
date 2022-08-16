@@ -319,10 +319,7 @@ Function ReplaceSolutionRefs([xml]$xml) {
     $ref = $_.ref
     $solution = $_.solution
 
-    $solutionRefs[$ref] = [PSCustomObject]@{
-      SolutionRef = $ref
-      Solution    = $solution
-    }
+    $solutionRefs[$ref] = $solution
   }
 
   Write-Host "Found $($solutionRefs.Count) solutionRefs"
@@ -340,11 +337,8 @@ Function ReplaceSolutionRefs([xml]$xml) {
       Exit (1)
     }
 
-    $refInfo = $solutionRefs[$solutionRef]
-
-    $ref = $solutionRef
-    $solution = $refInfo.Solution
-    Write-Debug "Replacing Ref=$ref solution=$solution"
+    $solution = $solutionRefs[$solutionRef]
+    Write-Debug "Replacing SolutionRef=$solutionRef solution=$solution"
 
     $_.Required.RemoveAttribute("solutionRef")
         
